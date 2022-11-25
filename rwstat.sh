@@ -12,25 +12,73 @@ regexNumber='^[0-9]+$'
 function verificar_argumentos()
 {
     ## verifica que pelo menos 1 argumento é passado
-    [[ $# -eq 0 ]] && echo "No arguments passed" >&2;
+    [[ $# -eq 0 ]] && processa_erro $#
 
     ## verifica que o número passado é válido
-    [[ $numeroSegundos =~ $regexNumber ]] || echo "Must be a number" >&2;
+    [[ $numeroSegundos =~ $regexNumber ]] || processa_erro $numeroSegundos
 
     # número de segundos precisa de ser superior a zero para calcular i/o
-    [[ $numeroSegundos -le 0 ]] && echo "Invalid number" >&2;
+    [[ $numeroSegundos -gt 0 ]] || processa_erro $numeroSegundos
 }
 
 function processa_erro()
 {
-    echo "Error!" >&2
+    echo "Error: $1"
+    exit 1
 }
+
+function error_handling()
+{
+    [ ! -d "$1" ] >/dev/null 2>&1
+    [ ! -f "$1" ] >/dev/null 2>&1
+}
+
+function calcular_valores()
+{
+    printf 'COMM|USER|PID|READB|WRITEB|RATER|RATEW|DATE\n' >> result.txt
+
+    allWorkingPids=$(ps | awk '{print $1 }' | grep -E '[0-9]')
+    # allWorkingPids=$(ls -l /proc | awk '{print $9}' | grep -o '^[0-9]*') || error_handling "$allWorkingPids"
+
+    for workingPid in $allWorkingPids
+    {
+        pid=$workingPid
+
+        comm=$(cat /proc/"$pid"/comm) || error_handling "$comm" # OUTPUT: bash
+
+        user=$(ls -ld /proc/"$pid" | awk '{print $3}') || error_handling "$user" # OUTPUT: root
+
+        readBytesBefore=$(< /proc/"$pid"/io grep -o '^rc.*' | cut -d " " -f 2) || error_handling "$readBytesBefore"  # OUTPUT: read_bytes: 38294
+
+        writeBytesBefore=$(< /proc/"$pid"/io grep -o '^wc.*' | cut -d " " -f 2) || error_handling "$writeBytesBefore"  # OUTPUT: write_bytes: 192
+
+        sleep "$numeroSegundos"
+
+        readBytesAfter=$(< /proc/"$pid"/io grep -o '^rc.*' | cut -d " " -f 2) || error_handling "$readBytesAfter"
+
+        writeBytesAfter=$(< /proc/"$pid"/io grep -o '^wc.*' | cut -d " " -f 2) || error_handling "$writeBytesAfter"
+
+        differenceReadBytes=$((readBytesAfter-readBytesBefore))
+
+        rateR=$(echo "scale=2 ; $differenceReadBytes / $numeroSegundos" | bc ) || error_handling "$rateR" # OUTPUT: rateR: 66270,00
+
+        differenceWriteBytes=$((writeBytesAfter-writeBytesBefore))
+
+        rateW=$(echo "scale=2 ; $differenceWriteBytes / $numeroSegundos" | bc) || error_handling "$rateW" # OUTPUT: rateW: 234,00
+
+        myDate=$(LANG=C ls -ld /proc/"$pid" | awk '{print $6, $7, $8}') || error_handling "$myDate"
+
+        result=("$comm" "$user" "$pid" "$readBytesBefore" "$writeBytesBefore" "$rateR" "$rateW" "$myDate")
+
+        echo "${result[0]}|${result[1]}|${result[2]}|${result[3]}|${result[4]}|${result[5]}|${result[6]}|${result[7]}" >> result.txt
+    }
+}
+
 
 function calcular_data()
 {
 	date -d "$target" +"%s"
 }
-
 
 function argumentos()
 {
@@ -40,12 +88,12 @@ function argumentos()
 
         case ${arg} in
             c )
-                comm=$(cat /proc/$$/comm | grep "$target" ) || processa_erro #funciona
+                comm=$(cat /proc/$$/comm | grep "$target" ) #funciona
                 ;;
             s )
                 echo "Opção opcaoMinDate escolhida"
                 data=$(calcular_data target)
-                
+
                 $result | grep "$data" # ainda não funciona
                 ;;
             e )
@@ -55,11 +103,11 @@ function argumentos()
                 $result | grep "$data" # ainda não funciona
                 ;;
             u )
-                user=$(ls -ls /proc/$$/io | grep "$target") || processa_erro #funciona
+                user=$(ls -ls /proc/$$/io | grep "$target") #funciona
 
                 if [ -z "${user}" ];
-                    then 
-                        processa_erro      
+                    then
+                        processa_erro "$1"
                     else
                         $user | awk '{print $4}'
                 fi
@@ -68,8 +116,8 @@ function argumentos()
                 echo "Opção opcaoMinPID escolhida" # imprime apenas os pids que fazem match aquele target # funciona
                 if [[ $$ =~ ^${target:0:1}.*$ ]]; # funciona se target tiver 2 ou mais caracteres
                     # if [ -z "${pid}" ];
-                    #     then 
-                    #         processa_erro    
+                    #     then
+                    #         processa_erro
                     # fi
                     then
                         pid=$$
@@ -79,10 +127,10 @@ function argumentos()
                 ;;
             M )
                 echo "Opção opcaoMaxPID escolhida" #ainda não funciona
-                if [[ $$ =~ ^${target:0:2}.*$ ]]; # funciona se target tiver 2 ou mais caracteres
+                if [[ $$ =~ ^${target:0:1}.*$ ]]; # funciona se target tiver 2 ou mais caracteres
                     # if [ -z "${pid}" ];
-                    #     then 
-                    #         processa_erro  
+                    #     then
+                    #         processa_erro
                     # fi
                     then
                         pid=$$
@@ -110,52 +158,14 @@ function argumentos()
     done
 }
 
-function calcular_valores()
-{
-    allWorkingPids=$(ps S | awk '{print $1 }' | grep -E '[0-9]')
-    
-    for workingPid in $allWorkingPids
-    {
-        pid=$workingPid || processa_erro
-        
-        comm=$(cat /proc/"$pid"/comm) # OUTPUT: bash
-
-        user=$(ls -ld /proc/"$pid" | awk '{print $3}') # OUTPUT: root
-
-        readBytesBefore=$(< /proc/"$pid"/io grep -o '^rc.*' | cut -d " " -f 2)  # OUTPUT: read_bytes: 38294
-
-        writeBytesBefore=$(< /proc/"$pid"/io grep -o '^wc.*' | cut -d " " -f 2)  # OUTPUT: write_bytes: 192
-
-        sleep "$numeroSegundos"
-
-        readBytesAfter=$(< /proc/"$pid"/io grep -o '^rc.*' | cut -d " " -f 2)
-
-        writeBytesAfter=$(< /proc/"$pid"/io grep -o '^wc.*' | cut -d " " -f 2)
-
-        rateR=$((readBytesAfter - readBytesBefore)) #|| processa_erro # OUTPUT: rateR: 66270,00
-
-        rateW=$((writeBytesAfter - writeBytesBefore)) # OUTPUT: rateW: 234,00
-
-        myDate=$(ls -ld . | awk '{print $6, $7, $8}')
-
-        result=("$comm" "$user" "$pid" "$readBytesBefore" "$writeBytesBefore" "$rateR" "$rateW" "$myDate")
-    }
-}
-    
 
 function imprimir_tabela()
 {
-    for r in "${result[@]}"
-    {
-        (
-            printf 'COMM\tUSER\tPID\tREADB\tWRITEB\tRATER\tRATEW\tDATE\n'
-            printf '%s\t%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n' \
-            "$r" \
-        ) | column -t -s $'\t' # output values
-    }
+    column "result.txt" -t -s $'|' -R 3,4,5,6,7,8
+    rm "result.txt"
 }
 
 verificar_argumentos "$@"
 calcular_valores
-calcular_argumentos "$@"
+argumentos "$@"
 imprimir_tabela
