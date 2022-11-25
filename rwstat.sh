@@ -9,21 +9,21 @@ numeroSegundos=${!#}
 optstring=":c:s:e:u:m:M:p:rw"
 regexNumber='^[0-9]+$'
 
-function argumentos()
+function verificar_argumentos()
 {
-    ## verifica que 1 argumento é passado
-    [[ $# -eq 0 ]] && echo "No arguments passed" >&2; exit 1;
+    ## verifica que pelo menos 1 argumento é passado
+    [[ $# -eq 0 ]] && echo "No arguments passed" >&2;
 
     ## verifica que o número passado é válido
-    [[ $numeroSegundos =~ $regexNumber ]] || [[ $numeroSegundos -le 0 ]] || echo "Must be a number" >&2; exit 1;
+    [[ $numeroSegundos =~ $regexNumber ]] || echo "Must be a number" >&2;
 
-    # # número de segundos precisa de ser superior a zero para calcular i/o
-    # [[ $numeroSegundos -le 0 ]] && echo "Invalid number" >&2;
+    # número de segundos precisa de ser superior a zero para calcular i/o
+    [[ $numeroSegundos -le 0 ]] && echo "Invalid number" >&2;
 }
 
 function processa_erro()
 {
-    echo "Erro" 1>&2;
+    echo "Error!" >&2
 }
 
 function calcular_data()
@@ -32,7 +32,7 @@ function calcular_data()
 }
 
 
-function calcular_argumentos()
+function argumentos()
 {
     while getopts ${optstring} arg; do
 
@@ -112,49 +112,50 @@ function calcular_argumentos()
 
 function calcular_valores()
 {
-    allWorkingPids=$(ls -l /proc | awk '{print $9}' | grep -o '^[0-9]*')
+    allWorkingPids=$(ps S | awk '{print $1 }' | grep -E '[0-9]')
     
-    for p in $allWorkingPids
+    for workingPid in $allWorkingPids
     {
-        pid=$p || processa_erro
-    
-        comm=$(cat /proc/$pid/comm) || processa_erro # OUTPUT: bash
+        pid=$workingPid || processa_erro
+        
+        comm=$(cat /proc/"$pid"/comm) # OUTPUT: bash
 
-        user=$(ls -ld /proc/$pid | awk '{print $3}') || processa_erro # OUTPUT: root
+        user=$(ls -ld /proc/"$pid" | awk '{print $3}') # OUTPUT: root
 
-        # ls -l /proc | awk '{print $9}' | grep -o '^[0-9]*' - pids
+        readBytesBefore=$(< /proc/"$pid"/io grep -o '^rc.*' | cut -d " " -f 2)  # OUTPUT: read_bytes: 38294
 
-        readBytesBefore=$(find /proc/ | cat /proc/$pid/io | grep -o '^rc.*' | cut -d " " -f 2) || processa_erro  # OUTPUT: read_bytes: 38294
-
-        writeBytesBefore=$(find /proc/ | cat /proc/$pid/io | grep -o '^wc.*' | cut -d " " -f 2) || processa_erro  # OUTPUT: write_bytes: 192
+        writeBytesBefore=$(< /proc/"$pid"/io grep -o '^wc.*' | cut -d " " -f 2)  # OUTPUT: write_bytes: 192
 
         sleep "$numeroSegundos"
 
-        readBytesAfter=$(find /proc/ | cat /proc/$pid/io | grep -o '^rc.*' | cut -d " " -f 2) || processa_erro
+        readBytesAfter=$(< /proc/"$pid"/io grep -o '^rc.*' | cut -d " " -f 2)
 
-        writeBytesAfter=$(find /proc/ | cat /proc/$pid/io | grep -o '^wc.*' | cut -d " " -f 2) || processa_erro
+        writeBytesAfter=$(< /proc/"$pid"/io grep -o '^wc.*' | cut -d " " -f 2)
 
         rateR=$((readBytesAfter - readBytesBefore)) #|| processa_erro # OUTPUT: rateR: 66270,00
 
-        rateW=$((writeBytesAfter - writeBytesBefore)) || processa_erro # OUTPUT: rateW: 234,00
+        rateW=$((writeBytesAfter - writeBytesBefore)) # OUTPUT: rateW: 234,00
 
-        myDate=$(ls -ld . | awk '{print $6, $7, $8}') || processa_erro
-    
-        imprimir_tabela
+        myDate=$(ls -ld . | awk '{print $6, $7, $8}')
+
+        result=("$comm" "$user" "$pid" "$readBytesBefore" "$writeBytesBefore" "$rateR" "$rateW" "$myDate")
     }
 }
     
 
 function imprimir_tabela()
 {
-    (
-		printf 'COMM\tUSER\tPID\tREADB\tWRITEB\tRATER\tRATEW\tDATE\n'
-    	printf '%s\t%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n' \
-		"$comm" "$user" "$pid" "$readBytesBefore" "$writeBytesBefore" "$rateR" "$rateW" "$myDate" \
-	) | column -t -s $'\t' # output values
+    for r in "${result[@]}"
+    {
+        (
+            printf 'COMM\tUSER\tPID\tREADB\tWRITEB\tRATER\tRATEW\tDATE\n'
+            printf '%s\t%s\t%s\t%s\t%s\t%.2f\t%.2f\t%s\n' \
+            "$r" \
+        ) | column -t -s $'\t' # output values
+    }
 }
 
-# argumentos "$@"
-calcular_argumentos "$@"
+verificar_argumentos "$@"
 calcular_valores
+calcular_argumentos "$@"
 imprimir_tabela
