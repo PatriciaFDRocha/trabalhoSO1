@@ -181,14 +181,14 @@ function argumentos()
 function ordenar_lista()
 {
     if [[ -n $ord_coluna ]]; then
-        declare -a sort_options=("-k $ord_coluna")
+        declare -a sort_options=("-k $ord_coluna,$ord_coluna")
 
         if [[ $ord_inverter -eq 0 ]]; then
             sort_options+=("-r")
         fi
 
         echo "DEBUG: ordenar_lista: sort_options: ${sort_options[@]}"
-        sort $tempfile ${sort_options[@]} -o $tempfile
+        sort $tempfile ${sort_options[@]} -g -t '|' -o $tempfile
     fi
 }
 
