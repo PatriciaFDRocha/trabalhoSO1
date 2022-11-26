@@ -9,6 +9,9 @@ numeroSegundos=${!#}
 optstring=":c:s:e:u:m:M:p:rw"
 regexNumber='^[0-9]+$'
 
+# Criar um ficheiro temporário.
+tempfile=$(mktemp) || tempfile="rwstat-$$.temp"
+
 function verificar_argumentos()
 {
     ## verifica que pelo menos 1 argumento é passado
@@ -35,7 +38,7 @@ function error_handling()
 
 function calcular_valores()
 {
-    printf 'COMM|USER|PID|READB|WRITEB|RATER|RATEW|DATE\n' >> result.txt
+    printf 'COMM|USER|PID|READB|WRITEB|RATER|RATEW|DATE\n' >> $tempfile
 
     allWorkingPids=$(ps -e | awk '{print $1 }' | grep -E '[0-9]')
     # allWorkingPids=$(ls -l /proc | awk '{print $9}' | grep -o '^[0-9]*') || error_handling "$allWorkingPids"
@@ -85,7 +88,7 @@ function calcular_valores()
         rateW=${writeRates[$pid]}
 
         result=("$comm" "$user" "$pid" "$readBytesBefore" "$writeBytesBefore" "$rateR" "$rateW" "$myDate")
-        echo "${result[0]}|${result[1]}|${result[2]}|${result[3]}|${result[4]}|${result[5]}|${result[6]}|${result[7]}" >> result.txt
+        echo "${result[0]}|${result[1]}|${result[2]}|${result[3]}|${result[4]}|${result[5]}|${result[6]}|${result[7]}" >> $tempfile
     }
 }
 
@@ -176,8 +179,8 @@ function argumentos()
 
 function imprimir_tabela()
 {
-    column "result.txt" -t -s $'|' -R 3,4,5,6,7,8
-    rm "result.txt"
+    column $tempfile -t -s $'|' -R 3,4,5,6,7,8
+    rm $tempfile
 }
 
 verificar_argumentos "$@"
