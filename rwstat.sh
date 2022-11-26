@@ -37,7 +37,7 @@ function calcular_valores()
 {
     printf 'COMM|USER|PID|READB|WRITEB|RATER|RATEW|DATE\n' >> result.txt
 
-    allWorkingPids=$(ps | awk '{print $1 }' | grep -E '[0-9]')
+    allWorkingPids=$(ps -e | awk '{print $1 }' | grep -E '[0-9]')
     # allWorkingPids=$(ls -l /proc | awk '{print $9}' | grep -o '^[0-9]*') || error_handling "$allWorkingPids"
 
     # Declarar todas estas variáveis como dicionários («arrays associativos»).
