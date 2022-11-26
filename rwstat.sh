@@ -40,36 +40,51 @@ function calcular_valores()
     allWorkingPids=$(ps | awk '{print $1 }' | grep -E '[0-9]')
     # allWorkingPids=$(ls -l /proc | awk '{print $9}' | grep -o '^[0-9]*') || error_handling "$allWorkingPids"
 
-    for workingPid in $allWorkingPids
+    # Declarar todas estas variáveis como dicionários («arrays associativos»).
+    declare -A comms
+    declare -A users
+    declare -A prev_bytesRead
+    declare -A prev_bytesWritten
+    declare -A curr_bytesRead
+    declare -A curr_bytesWritten
+    declare -A readRates
+    declare -A writeRates
+    declare -A dates
+
+    for pid in $allWorkingPids
     {
-        pid=$workingPid
+        comms[$pid]=$(cat /proc/"$pid"/comm) || error_handling "${comms[$pid]}" # OUTPUT: bash
+        users[$pid]=$(ls -ld /proc/"$pid" | awk '{print $3}') || error_handling "${users[$pid]}" # OUTPUT: root
+        prev_bytesRead[$pid]=$(< /proc/"$pid"/io grep -o '^rc.*' | cut -d " " -f 2) || error_handling "${prev_bytesRead[$pid]}"  # OUTPUT: read_bytes: 38294
+        prev_bytesWritten[$pid]=$(< /proc/"$pid"/io grep -o '^wc.*' | cut -d " " -f 2) || error_handling "${prev_bytesWritten[$pid]}"  # OUTPUT: write_bytes: 192
+        dates[$pid]=$(LANG=C ls -ld /proc/"$pid" | awk '{print $6, $7, $8}') || error_handling "${dates[$pid]}"
+    }
 
-        comm=$(cat /proc/"$pid"/comm) || error_handling "$comm" # OUTPUT: bash
+    sleep "$numeroSegundos"
 
-        user=$(ls -ld /proc/"$pid" | awk '{print $3}') || error_handling "$user" # OUTPUT: root
+    for pid in $allWorkingPids
+    {
+        curr_bytesRead[$pid]=$(< /proc/"$pid"/io grep -o '^rc.*' | cut -d " " -f 2) || error_handling "$curr_bytesRead"
+        curr_bytesWritten[$pid]=$(< /proc/"$pid"/io grep -o '^wc.*' | cut -d " " -f 2) || error_handling "$curr_bytesWritten"
 
-        readBytesBefore=$(< /proc/"$pid"/io grep -o '^rc.*' | cut -d " " -f 2) || error_handling "$readBytesBefore"  # OUTPUT: read_bytes: 38294
+        differenceReadBytes=$((curr_bytesRead[$pid]-prev_bytesRead[$pid]))
+        readRates[$pid]=$(echo "scale=2 ; $differenceReadBytes / $numeroSegundos" | bc ) || error_handling "${readRates[$pid]}" # OUTPUT: rateR: 66270,00
 
-        writeBytesBefore=$(< /proc/"$pid"/io grep -o '^wc.*' | cut -d " " -f 2) || error_handling "$writeBytesBefore"  # OUTPUT: write_bytes: 192
+        differenceWriteBytes=$((curr_bytesWritten[$pid]-prev_bytesWritten[$pid]))
+        writeRates[$pid]=$(echo "scale=2 ; $differenceWriteBytes / $numeroSegundos" | bc) || error_handling "${writeRates[$pid]}" # OUTPUT: rateW: 234,00
+    }
 
-        sleep "$numeroSegundos"
-
-        readBytesAfter=$(< /proc/"$pid"/io grep -o '^rc.*' | cut -d " " -f 2) || error_handling "$readBytesAfter"
-
-        writeBytesAfter=$(< /proc/"$pid"/io grep -o '^wc.*' | cut -d " " -f 2) || error_handling "$writeBytesAfter"
-
-        differenceReadBytes=$((readBytesAfter-readBytesBefore))
-
-        rateR=$(echo "scale=2 ; $differenceReadBytes / $numeroSegundos" | bc ) || error_handling "$rateR" # OUTPUT: rateR: 66270,00
-
-        differenceWriteBytes=$((writeBytesAfter-writeBytesBefore))
-
-        rateW=$(echo "scale=2 ; $differenceWriteBytes / $numeroSegundos" | bc) || error_handling "$rateW" # OUTPUT: rateW: 234,00
-
-        myDate=$(LANG=C ls -ld /proc/"$pid" | awk '{print $6, $7, $8}') || error_handling "$myDate"
+    for pid in $allWorkingPids
+    {
+        comm=${comms[$pid]}
+        user=${users[$pid]}
+        readBytesBefore=${prev_bytesRead[$pid]}
+        writeBytesBefore=${prev_bytesWritten[$pid]}
+        myDate=${dates[$pid]}
+        rateR=${readRates[$pid]}
+        rateW=${writeRates[$pid]}
 
         result=("$comm" "$user" "$pid" "$readBytesBefore" "$writeBytesBefore" "$rateR" "$rateW" "$myDate")
-
         echo "${result[0]}|${result[1]}|${result[2]}|${result[3]}|${result[4]}|${result[5]}|${result[6]}|${result[7]}" >> result.txt
     }
 }
