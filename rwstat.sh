@@ -2,6 +2,10 @@
 #!/usr/bin/env bash
 #This script gets the statistics of reading/writing on running processes
 
+###############################
+# Variáveis globais   #########
+###############################
+
 # argumento for the number of seconds
 # vai ser sempre o último argumento
 numeroSegundos=${!#}
@@ -11,6 +15,12 @@ regexNumber='^[0-9]+$'
 
 # Criar um ficheiro temporário.
 tempfile=$(mktemp) || tempfile="rwstat-$$.temp"
+
+# Parâmetros de filtragem e ordenação
+ord_coluna=""       # Ordenar por esta coluna no final
+ord_inverter="0"    # Inverter a ordem ou não.
+
+
 
 function verificar_argumentos()
 {
@@ -32,8 +42,6 @@ function processa_erro()
 
 function calcular_valores()
 {
-    printf 'COMM|USER|PID|READB|WRITEB|RATER|RATEW|DATE\n' >> $tempfile
-
     allWorkingPids=$(ps | awk '{print $1 }' | grep -E '[0-9]')
     # allWorkingPids=$(ls -l /proc | awk '{print $9}' | grep -o '^[0-9]*')
 
@@ -155,12 +163,12 @@ function argumentos()
                 $result | head -n "$target" # ainda não funciona
                 ;;
             r )
-                echo "Opção opcaoSortReverse escolhida"
-                sort -r # ainda não funciona
+                echo "Opção opcaoSortReverse escolhida" # Funciona!
+                ord_inverter="1"
                 ;;
             w )
-                echo "Opção opcaoSortWrite escolhida"
-                sort k5 # ainda não funciona
+                echo "Opção opcaoSortWrite escolhida"   # Funciona!
+                ord_coluna="7"
                 ;;
             ? )
                 echo "Opção inválida"
@@ -170,10 +178,24 @@ function argumentos()
     done
 }
 
+function ordenar_lista()
+{
+    if [[ -n $ord_coluna ]]; then
+        declare -a sort_options=("-k $ord_coluna")
+
+        if [[ $ord_inverter -eq 0 ]]; then
+            sort_options+=("-r")
+        fi
+
+        echo "DEBUG: ordenar_lista: sort_options: ${sort_options[@]}"
+        sort $tempfile ${sort_options[@]} -o $tempfile
+    fi
+}
 
 function imprimir_tabela()
 {
-    column $tempfile -t -s $'|' -R 3,4,5,6,7,8
+    ordenar_lista
+    column $tempfile -t -s $'|' -N "COMM,USER,PID,READB,WRITEB,RATER,RATEW,DATE" -R 3,4,5,6,7,8
     rm $tempfile
 }
 
