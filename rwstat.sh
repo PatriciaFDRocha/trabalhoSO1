@@ -21,7 +21,6 @@ ord_coluna=""       # Ordenar por esta coluna no final
 ord_inverter="0"    # Inverter a ordem ou não.
 
 
-
 function verificar_argumentos()
 {
     ## verifica que pelo menos 1 argumento é passado
@@ -36,14 +35,13 @@ function verificar_argumentos()
 
 function processa_erro()
 {
-    echo "Error: $1"
+    echo "Invalid Argument: $1"
     exit 1
 }
 
 function calcular_valores()
 {
     allWorkingPids=$(ps | awk '{print $1 }' | grep -E '[0-9]')
-    # allWorkingPids=$(ls -l /proc | awk '{print $9}' | grep -o '^[0-9]*')
 
     # Declarar todas estas variáveis como dicionários («arrays associativos»).
     declare -A comms
@@ -110,7 +108,9 @@ function argumentos()
 
         case ${arg} in
             c )
-                comm=$(cat /proc/$$/comm | grep "$target" ) #funciona
+                awk '{ print $1 }' $tempfile | grep "^${target}.*$" > tmpfile && mv tmpfile $tempfile
+                ## funciona para matched - se não der matched ainda não funciona
+                ## é só uma questão de colocar um if se não der matched - ou melhorar awk
                 ;;
             s )
                 echo "Opção opcaoMinDate escolhida"
@@ -125,55 +125,25 @@ function argumentos()
                 $result | grep "$data" # ainda não funciona
                 ;;
             u )
-                user=$(ls -ls /proc/$$/io | grep "$target") #funciona
-
-                if [ -z "${user}" ];
-                    then
-                        processa_erro "$1"
-                    else
-                        $user | awk '{print $4}'
-                fi
+                awk -F"|" -e '{ if($2 ~ '"/$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
                 ;;
             m )
-                echo "Opção opcaoMinPID escolhida" # imprime apenas os pids que fazem match aquele target # funciona
-                if [[ $$ =~ ^${target:0:1}.*$ ]];
-                    # if [ -z "${pid}" ];
-                    #     then
-                    #         processa_erro
-                    # fi
-                    then
-                        pid=$$
-                    else
-                        processa_erro
-                fi
+                awk -F"|" '{ if($3 >= '"$target"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
                 ;;
             M )
-                echo "Opção opcaoMaxPID escolhida" #ainda não funciona
-                if [[ $$ =~ ^${target:0:1}.*$ ]]; # funciona se target tiver 2 ou mais caracteres
-                    # if [ -z "${pid}" ];
-                    #     then
-                    #         processa_erro
-                    # fi
-                    then
-                        pid=$$
-                    else
-                        processa_erro
-                fi
+                awk -F"|" '{ if($3 <= '"$target"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
                 ;;
             p )
-                echo "Opção opcaoNumProcesses escolhida"
-                $result | head -n "$target" # ainda não funciona
+                head -n "$target" $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
                 ;;
             r )
-                echo "Opção opcaoSortReverse escolhida" # Funciona!
-                ord_inverter="1"
+                ord_inverter="1" # Funciona!
                 ;;
             w )
-                echo "Opção opcaoSortWrite escolhida"   # Funciona!
-                ord_coluna="7"
+                ord_coluna="7" # Funciona!
                 ;;
             ? )
-                echo "Opção inválida"
+                echo "Invalid option"
                 ;;
         esac
 
@@ -189,8 +159,8 @@ function ordenar_lista()
             sort_options+=("-r")
         fi
 
-        echo "DEBUG: ordenar_lista: sort_options: ${sort_options[@]}"
-        sort $tempfile ${sort_options[@]} -g -t '|' -o $tempfile
+        echo "DEBUG: ordenar_lista: sort_options: %s " "${sort_options[@]}"
+        sort $tempfile "${sort_options[@]}" -g -t '|' -o $tempfile
     fi
 }
 
