@@ -58,25 +58,22 @@ function calcular_valores()
 
     for pid in $allWorkingPids
     {
-        comms[$pid]=$(cat /proc/"$pid"/comm 2>/dev/null) # OUTPUT: bash
-        users[$pid]=$(ls -ld /proc/"$pid" 2>/dev/null | awk '{print $3}') # OUTPUT: root
-        prev_bytesRead[$pid]=$(cat /proc/"$pid"/io 2>/dev/null | grep -o '^rc.*' | cut -d " " -f 2) # OUTPUT: read_bytes: 38294
-        prev_bytesWritten[$pid]=$(cat /proc/"$pid"/io 2>/dev/null | grep -o '^wc.*' | cut -d " " -f 2) # OUTPUT: write_bytes: 192
+        comms[$pid]=$(cat /proc/"$pid"/comm 2>/dev/null)
+        users[$pid]=$(ls -ld /proc/"$pid" 2>/dev/null | awk '{print $3}')
+        prev_bytesRead[$pid]=$(cat /proc/"$pid"/io 2>/dev/null | grep -o '^rc.*' | cut -d " " -f 2)
+        prev_bytesWritten[$pid]=$(cat /proc/"$pid"/io 2>/dev/null | grep -o '^wc.*' | cut -d " " -f 2)
         dates[$pid]=$(LANG=C ls -ld /proc/"$pid" 2>/dev/null | awk '{print $6, $7, $8}')
-    }
 
-    sleep "$numeroSegundos"
+        sleep "$numeroSegundos"
 
-    for pid in $allWorkingPids
-    {
         curr_bytesRead[$pid]=$(cat /proc/"$pid"/io  2>/dev/null | grep -o '^rc.*' | cut -d " " -f 2)
         curr_bytesWritten[$pid]=$(cat /proc/"$pid"/io  2>/dev/null | grep -o '^wc.*' | cut -d " " -f 2)
 
         differenceReadBytes=$((curr_bytesRead[$pid]-prev_bytesRead[$pid]))
-        readRates[$pid]=$(echo "scale=2 ; $differenceReadBytes / $numeroSegundos" | bc ) # OUTPUT: rateR: 66270,00
+        readRates[$pid]=$(echo "scale=2 ; $differenceReadBytes / $numeroSegundos" | bc )
 
         differenceWriteBytes=$((curr_bytesWritten[$pid]-prev_bytesWritten[$pid]))
-        writeRates[$pid]=$(echo "scale=2 ; $differenceWriteBytes / $numeroSegundos" | bc) # OUTPUT: rateW: 234,00
+        writeRates[$pid]=$(echo "scale=2 ; $differenceWriteBytes / $numeroSegundos" | bc)
     }
 
     for pid in $allWorkingPids
@@ -90,7 +87,12 @@ function calcular_valores()
         rateW=${writeRates[$pid]}
 
         result=("$comm" "$user" "$pid" "$readBytesBefore" "$writeBytesBefore" "$rateR" "$rateW" "$myDate")
-        echo "${result[0]}|${result[1]}|${result[2]}|${result[3]}|${result[4]}|${result[5]}|${result[6]}|${result[7]}" >> $tempfile
+
+        if [ -z "$comm" ]; then
+            continue
+        else
+            echo "${result[0]}|${result[1]}|${result[2]}|${result[3]}|${result[4]}|${result[5]}|${result[6]}|${result[7]}" >> $tempfile
+        fi
     }
 }
 
@@ -134,7 +136,7 @@ function argumentos()
                 ;;
             m )
                 echo "Opção opcaoMinPID escolhida" # imprime apenas os pids que fazem match aquele target # funciona
-                if [[ $$ =~ ^${target:0:1}.*$ ]]; # funciona se target tiver 2 ou mais caracteres
+                if [[ $$ =~ ^${target:0:1}.*$ ]];
                     # if [ -z "${pid}" ];
                     #     then
                     #         processa_erro
