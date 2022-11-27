@@ -108,9 +108,7 @@ function argumentos()
 
         case ${arg} in
             c )
-                awk '{ print $1 }' $tempfile | grep "^${target}.*$" > tmpfile && mv tmpfile $tempfile
-                ## funciona para matched - se não der matched ainda não funciona
-                ## é só uma questão de colocar um if se não der matched - ou melhorar awk
+                awk -F"|" -e '{ if($1 ~ '"/^$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
                 ;;
             s )
                 echo "Opção opcaoMinDate escolhida"
