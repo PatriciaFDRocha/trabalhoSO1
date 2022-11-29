@@ -19,6 +19,13 @@ tempfile=$(mktemp) || tempfile="rwstat-$$.temp"
 # Parâmetros de filtragem e ordenação
 ord_coluna=""       # Ordenar por esta coluna no final
 ord_inverter="0"    # Inverter a ordem ou não.
+filtro_comm=""
+filtro_dataMin=""
+filtro_dataMax=""
+filtro_user=""
+filtro_pidMin=""
+filtro_pidMax=""
+filtro_linhasMax=""
 
 
 function verificar_argumentos()
@@ -108,31 +115,29 @@ function argumentos()
 
         case ${arg} in
             c )
-                awk -F"|" -e '{ if($1 ~ '"/^$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
+                filtro_comm=$target
                 ;;
             s )
-                echo "Opção opcaoMinDate escolhida"
                 data=$(calcular_data target)
-
-                $result | grep "$data" # ainda não funciona
+                filtro_dataMin=$data
+                awk -F'|' '{ if('"calcular_data $8"' >= '"$data"') { print }}'
                 ;;
             e )
                 echo "Opção opcaoMaxDate escolhida"
                 data=$(calcular_data target)
-
-                $result | grep "$data" # ainda não funciona
+                filtro_dataMax=$data
                 ;;
             u )
-                awk -F"|" -e '{ if($2 ~ '"/$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
+                filtro_user=$target
                 ;;
             m )
-                awk -F"|" '{ if($3 >= '"$target"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
+                filtro_pidMin=$target
                 ;;
             M )
-                awk -F"|" '{ if($3 <= '"$target"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
+                filtro_pidMax=$target
                 ;;
             p )
-                head -n "$target" $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
+                filtro_linhasMax=$target
                 ;;
             r )
                 ord_inverter="1" # Funciona!
@@ -148,7 +153,30 @@ function argumentos()
     done
 }
 
-function ordenar_lista()
+function filtrar_linhas()
+{
+    if [[ -n $filtro_comm ]]; then
+        awk -F"|" -e '{ if($1 ~ '"/^$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
+    fi
+
+    if [[ -n $filtro_linhasMax ]]; then
+        head -n "$target" $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
+    fi
+
+    if [[ -n $filtro_user ]]; then
+        awk -F"|" -e '{ if($2 ~ '"/$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
+    fi
+
+    if [[ -n $filtro_pidMin ]]; then
+        awk -F"|" '{ if($3 >= '"$target"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
+    fi
+
+    if [[ -n $filtro_pidMax ]]; then
+        awk -F"|" '{ if($3 <= '"$target"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
+    fi
+}
+
+function ordenar_linhas()
 {
     if [[ -n $ord_coluna ]]; then
         declare -a sort_options=("-k $ord_coluna,$ord_coluna")
@@ -164,7 +192,8 @@ function ordenar_lista()
 
 function imprimir_tabela()
 {
-    ordenar_lista
+    filtrar_linhas
+    ordenar_linhas
     column $tempfile -t -s $'|' -N "COMM,USER,PID,READB,WRITEB,RATER,RATEW,DATE" -R 3,4,5,6,7,8
     rm $tempfile
 }
