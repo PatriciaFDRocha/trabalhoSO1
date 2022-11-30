@@ -115,7 +115,7 @@ function argumentos()
 
         case ${arg} in
             c )
-                filtro_comm=$target
+                awk -F"|" -e '{ if($1 ~ '"/^$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
                 ;;
             s )
                 data=$(calcular_data target)
@@ -128,16 +128,16 @@ function argumentos()
                 filtro_dataMax=$data
                 ;;
             u )
-                filtro_user=$target
+                awk -F"|" -e '{ if($2 ~ '"/$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
                 ;;
             m )
-                filtro_pidMin=$target
+                awk -F"|" '{ if($3 >= '"$target"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
                 ;;
             M )
-                filtro_pidMax=$target
+                awk -F"|" '{ if($3 <= '"$target"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
                 ;;
             p )
-                filtro_linhasMax=$target
+                head -n "$target" $tempfile > tmpfile && mv tmpfile $tempfile
                 ;;
             r )
                 ord_inverter="1" # Funciona!
@@ -153,29 +153,6 @@ function argumentos()
     done
 }
 
-function filtrar_linhas()
-{
-    if [[ -n $filtro_comm ]]; then
-        awk -F"|" -e '{ if($1 ~ '"/^$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
-    fi
-
-    if [[ -n $filtro_linhasMax ]]; then
-        head -n "$target" $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
-    fi
-
-    if [[ -n $filtro_user ]]; then
-        awk -F"|" -e '{ if($2 ~ '"/$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
-    fi
-
-    if [[ -n $filtro_pidMin ]]; then
-        awk -F"|" '{ if($3 >= '"$target"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
-    fi
-
-    if [[ -n $filtro_pidMax ]]; then
-        awk -F"|" '{ if($3 <= '"$target"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile # Funciona!
-    fi
-}
-
 function ordenar_linhas()
 {
     if [[ -n $ord_coluna ]]; then
@@ -185,14 +162,12 @@ function ordenar_linhas()
             sort_options+=("-r")
         fi
 
-        echo "DEBUG: ordenar_lista: sort_options: %s " "${sort_options[@]}"
         sort $tempfile "${sort_options[@]}" -g -t '|' -o $tempfile
     fi
 }
 
 function imprimir_tabela()
 {
-    filtrar_linhas
     ordenar_linhas
     column $tempfile -t -s $'|' -N "COMM,USER,PID,READB,WRITEB,RATER,RATEW,DATE" -R 3,4,5,6,7,8
     rm $tempfile
