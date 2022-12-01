@@ -177,11 +177,6 @@ function filtrar_linhas()
         awk -F"|" -e '{ if($1 ~ '"/^$filtro_comm/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
     fi
 
-    if [[ -n $filtro_linhasMax ]]; then
-        echo "DEBUG: A filtrar por quantidade de linhas."
-        head -n "$filtro_linhasMax" $tempfile > tmpfile && mv tmpfile $tempfile
-    fi
-
     if [[ -n $filtro_user ]]; then
         echo "DEBUG: A filtrar por user ($filtro_user)."
         awk -F"|" -e '{ if($2 ~ '"/$filtro_user/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
@@ -211,10 +206,19 @@ function ordenar_linhas()
     fi
 }
 
+function cortar_linhas()
+{
+    if [[ -n $filtro_linhasMax ]]; then
+            echo "DEBUG: A filtrar por quantidade de linhas."
+            head -n "$filtro_linhasMax" $tempfile > tmpfile && mv tmpfile $tempfile
+    fi
+}
+
 function imprimir_tabela()
 {
     filtrar_linhas
     ordenar_linhas
+    cortar_linhas
     column $tempfile -t -s $'|' -N "COMM,USER,PID,READB,WRITEB,RATER,RATEW,DATE" -R 3,4,5,6,7,8
     rm $tempfile
 }
