@@ -99,7 +99,7 @@ function calcular_valores()
 
 function calcular_data()
 {
-	date -d "$target" +"%s"
+    date -d "$1" +"%s"
 }
 
 function argumentos()
@@ -113,13 +113,13 @@ function argumentos()
                 awk -F"|" -e '{ if($1 ~ '"/^$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
                 ;;
             s )
-                data=$(calcular_data target)
+                data=$(calcular_data "$target")
                 filtro_dataMin=$data
                 awk -F'|' '{ if('"calcular_data $8"' >= '"$data"') { print }}'
                 ;;
             e )
                 echo "Opção opcaoMaxDate escolhida"
-                data=$(calcular_data target)
+                data=$(calcular_data "$target")
                 filtro_dataMax=$data
                 ;;
             u )
