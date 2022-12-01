@@ -49,7 +49,6 @@ function processa_erro()
 function calcular_valores()
 {
     allWorkingPids=$(ps | awk '{print $1 }' | grep -E '[0-9]')
-    echo "DEBUG: filtro_dataMin = $filtro_dataMin; filtro_dataMax = $filtro_dataMax"
 
     # Declarar todas estas variáveis como dicionários («arrays associativos»).
     declare -A all_comms
@@ -74,7 +73,6 @@ function calcular_valores()
         # Filtrar
         if [[ (-n $filtro_dataMin && $unix_date -le $filtro_dataMin) ||
               (-n $filtro_dataMax && $unix_date -ge $filtro_dataMax) ]]; then
-            echo "DEBUG: PID $pid foi filtrado (tinha a data: $date ($unix_date))"
             continue;
         fi
 
@@ -130,7 +128,6 @@ function argumentos()
 {
     while getopts ${optstring} arg; do
         target=$OPTARG
-        echo "DEBUG: OPTARG = $OPTARG;   target = $target;  arg = $arg; optstring = ${optstring}"
 
         case $arg in
             c )
@@ -173,26 +170,21 @@ function argumentos()
 function filtrar_linhas()
 {
     if [[ -n $filtro_comm ]]; then
-        echo "DEBUG: A filtrar por comm."
         tmpfilter=$(mktemp) || tmpfilter=".rwstat-$$-filter.temp"
         awk -F"|" -e '{ if($1 ~ '"/^$filtro_comm/"') {print}}' $tempfile > $tmpfilter && mv $tmpfilter $tempfile
     fi
 
     if [[ -n $filtro_user ]]; then
-        echo "DEBUG: A filtrar por user ($filtro_user)."
         tmpfilter=$(mktemp) || tmpfilter=".rwstat-$$-filter.temp"
-        echo "DEBUG: tmpfilter: $tmpfilter"
         awk -F"|" -e '{ if($2 ~ '"/$filtro_user/"') {print}}' $tempfile > $tmpfilter && mv $tmpfilter $tempfile
     fi
 
     if [[ -n $filtro_pidMin ]]; then
-        echo "DEBUG: A filtrar por PID mínimo."
         tmpfilter=$(mktemp) || tmpfilter=".rwstat-$$-filter.temp"
         awk -F"|" '{ if($3 >= '"$filtro_pidMin"') {print}}' $tempfile > $tmpfilter && mv $tmpfilter $tempfile
     fi
 
     if [[ -n $filtro_pidMax ]]; then
-        echo "DEBUG: A filtrar por PID máximo."
         tmpfilter=$(mktemp) || tmpfilter=".rwstat-$$-filter.temp"
         awk -F"|" '{ if($3 <= '"$filtro_pidMax"') {print}}' $tempfile > $tmpfilter && mv $tmpfilter $tempfile
     fi
@@ -214,9 +206,8 @@ function ordenar_linhas()
 function cortar_linhas()
 {
     if [[ -n $filtro_linhasMax ]]; then
-            echo "DEBUG: A filtrar por quantidade de linhas."
-            tmpfilter=$(mktemp) || tmpfilter=".rwstat-$$-filter.temp"
-            head -n "$filtro_linhasMax" $tempfile > $tmpfilter && mv $tmpfilter $tempfile
+        tmpfilter=$(mktemp) || tmpfilter=".rwstat-$$-filter.temp"
+        head -n "$filtro_linhasMax" $tempfile > $tmpfilter && mv $tmpfilter $tempfile
     fi
 }
 
