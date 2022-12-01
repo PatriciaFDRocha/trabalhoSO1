@@ -19,8 +19,13 @@ tempfile=$(mktemp) || tempfile="rwstat-$$.temp"
 # Parâmetros de filtragem e ordenação
 ord_coluna=""       # Ordenar por esta coluna no final
 ord_inverter="0"    # Inverter a ordem ou não.
+filtro_comm=""
 filtro_dataMin=""
 filtro_dataMax=""
+filtro_user=""
+filtro_pidMin=""
+filtro_pidMax=""
+filtro_linhasMax=""
 
 
 function verificar_argumentos()
@@ -44,47 +49,66 @@ function processa_erro()
 function calcular_valores()
 {
     allWorkingPids=$(ps | awk '{print $1 }' | grep -E '[0-9]')
+    echo "DEBUG: filtro_dataMin = $filtro_dataMin; filtro_dataMax = $filtro_dataMax"
 
     # Declarar todas estas variáveis como dicionários («arrays associativos»).
-    declare -A comms
-    declare -A users
-    declare -A prev_bytesRead
-    declare -A prev_bytesWritten
-    declare -A curr_bytesRead
-    declare -A curr_bytesWritten
-    declare -A readRates
-    declare -A writeRates
-    declare -A dates
+    declare -A all_comms
+    declare -A all_users
+    declare -A all_prev_bytesRead
+    declare -A all_prev_bytesWritten
+    declare -A all_curr_bytesRead
+    declare -A all_curr_bytesWritten
+    declare -A all_readRates
+    declare -A all_writeRates
+    declare -A all_dates
 
     for pid in $allWorkingPids
     {
-        comms[$pid]=$(cat /proc/"$pid"/comm 2>/dev/null)
-        users[$pid]=$(ls -ld /proc/"$pid" 2>/dev/null | awk '{print $3}')
-        prev_bytesRead[$pid]=$(cat /proc/"$pid"/io 2>/dev/null | grep -o '^rc.*' | cut -d " " -f 2)
-        prev_bytesWritten[$pid]=$(cat /proc/"$pid"/io 2>/dev/null | grep -o '^wc.*' | cut -d " " -f 2)
-        dates[$pid]=$(LANG=C ls -ld /proc/"$pid" 2>/dev/null | awk '{print $6, $7, $8}')
+        comm=$(cat /proc/"$pid"/comm 2>/dev/null)
+        user=$(ls -ld /proc/"$pid" 2>/dev/null | awk '{print $3}')
+        prev_bytesRead=$(cat /proc/"$pid"/io 2>/dev/null | grep -o '^rc.*' | cut -d " " -f 2)
+        prev_bytesWritten=$(cat /proc/"$pid"/io 2>/dev/null | grep -o '^wc.*' | cut -d " " -f 2)
+        date=$(LANG=C ls -ld /proc/"$pid" 2>/dev/null | awk '{print $6, $7, $8}')
+        unix_date=$(calcular_data "$date")
+
+        # Filtrar
+        if [[ (-n $filtro_dataMin && $unix_date -le $filtro_dataMin) ||
+              (-n $filtro_dataMax && $unix_date -ge $filtro_dataMax) ]]; then
+            echo "DEBUG: PID $pid foi filtrado (tinha a data: $date ($unix_date))"
+            continue;
+        fi
 
         sleep "$numeroSegundos"
 
-        curr_bytesRead[$pid]=$(cat /proc/"$pid"/io  2>/dev/null | grep -o '^rc.*' | cut -d " " -f 2)
-        curr_bytesWritten[$pid]=$(cat /proc/"$pid"/io  2>/dev/null | grep -o '^wc.*' | cut -d " " -f 2)
+        curr_bytesRead=$(cat /proc/"$pid"/io  2>/dev/null | grep -o '^rc.*' | cut -d " " -f 2)
+        curr_bytesWritten=$(cat /proc/"$pid"/io  2>/dev/null | grep -o '^wc.*' | cut -d " " -f 2)
 
-        differenceReadBytes=$((curr_bytesRead[$pid]-prev_bytesRead[$pid]))
-        readRates[$pid]=$(echo "scale=2 ; $differenceReadBytes / $numeroSegundos" | bc )
+        differenceReadBytes=$((curr_bytesRead-prev_bytesRead))
+        readRates=$(echo "scale=2 ; $differenceReadBytes / $numeroSegundos" | bc )
 
-        differenceWriteBytes=$((curr_bytesWritten[$pid]-prev_bytesWritten[$pid]))
-        writeRates[$pid]=$(echo "scale=2 ; $differenceWriteBytes / $numeroSegundos" | bc)
+        differenceWriteBytes=$((curr_bytesWritten-prev_bytesWritten))
+        writeRates=$(echo "scale=2 ; $differenceWriteBytes / $numeroSegundos" | bc)
+
+        all_comms[$pid]=$comm
+        all_users[$pid]=$user
+        all_prev_bytesRead[$pid]=$prev_bytesRead
+        all_prev_bytesWritten[$pid]=$prev_bytesWritten
+        all_curr_bytesRead[$pid]=$curr_bytesRead
+        all_curr_bytesWritten[$pid]=$curr_bytesWritten
+        all_readRates[$pid]=$readRates
+        all_writeRates[$pid]=$writeRates
+        all_dates[$pid]=$date
     }
 
     for pid in $allWorkingPids
     {
-        comm=${comms[$pid]}
-        user=${users[$pid]}
-        readBytesBefore=${prev_bytesRead[$pid]}
-        writeBytesBefore=${prev_bytesWritten[$pid]}
-        myDate=${dates[$pid]}
-        rateR=${readRates[$pid]}
-        rateW=${writeRates[$pid]}
+        comm=${all_comms[$pid]}
+        user=${all_users[$pid]}
+        readBytesBefore=${all_prev_bytesRead[$pid]}
+        writeBytesBefore=${all_prev_bytesWritten[$pid]}
+        myDate=${all_dates[$pid]}
+        rateR=${all_readRates[$pid]}
+        rateW=${all_writeRates[$pid]}
 
         result=("$comm" "$user" "$pid" "$readBytesBefore" "$writeBytesBefore" "$rateR" "$rateW" "$myDate")
 
@@ -105,34 +129,32 @@ function calcular_data()
 function argumentos()
 {
     while getopts ${optstring} arg; do
-
         target=$OPTARG
+        echo "DEBUG: OPTARG = $OPTARG;   target = $target;  arg = $arg; optstring = ${optstring}"
 
-        case ${arg} in
+        case $arg in
             c )
-                awk -F"|" -e '{ if($1 ~ '"/^$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
+                filtro_comm=$target
                 ;;
             s )
                 data=$(calcular_data "$target")
                 filtro_dataMin=$data
-                awk -F'|' '{ if('"calcular_data $8"' >= '"$data"') { print }}'
                 ;;
             e )
-                echo "Opção opcaoMaxDate escolhida"
                 data=$(calcular_data "$target")
                 filtro_dataMax=$data
                 ;;
             u )
-                awk -F"|" -e '{ if($2 ~ '"/$target/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
+                filtro_user=$target
                 ;;
             m )
-                awk -F"|" '{ if($3 >= '"$target"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
+                filtro_pidMin=$target
                 ;;
             M )
-                awk -F"|" '{ if($3 <= '"$target"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
+                filtro_pidMax=$target
                 ;;
             p )
-                head -n "$target" $tempfile > tmpfile && mv tmpfile $tempfile
+                filtro_linhasMax=$target
                 ;;
             r )
                 ord_inverter="1"
@@ -145,8 +167,35 @@ function argumentos()
                 exit 1;
                 ;;
         esac
-
     done
+}
+
+function filtrar_linhas()
+{
+    if [[ -n $filtro_comm ]]; then
+        echo "DEBUG: A filtrar por comm."
+        awk -F"|" -e '{ if($1 ~ '"/^$filtro_comm/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
+    fi
+
+    if [[ -n $filtro_linhasMax ]]; then
+        echo "DEBUG: A filtrar por quantidade de linhas."
+        head -n "$filtro_linhasMax" $tempfile > tmpfile && mv tmpfile $tempfile
+    fi
+
+    if [[ -n $filtro_user ]]; then
+        echo "DEBUG: A filtrar por user ($filtro_user)."
+        awk -F"|" -e '{ if($2 ~ '"/$filtro_user/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
+    fi
+
+    if [[ -n $filtro_pidMin ]]; then
+        echo "DEBUG: A filtrar por PID mínimo."
+        awk -F"|" '{ if($3 >= '"$filtro_pidMin"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
+    fi
+
+    if [[ -n $filtro_pidMax ]]; then
+        echo "DEBUG: A filtrar por PID máximo."
+        awk -F"|" '{ if($3 <= '"$filtro_pidMax"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
+    fi
 }
 
 function ordenar_linhas()
@@ -164,12 +213,13 @@ function ordenar_linhas()
 
 function imprimir_tabela()
 {
+    filtrar_linhas
     ordenar_linhas
     column $tempfile -t -s $'|' -N "COMM,USER,PID,READB,WRITEB,RATER,RATEW,DATE" -R 3,4,5,6,7,8
     rm $tempfile
 }
 
 verificar_argumentos "$@"
-calcular_valores
 argumentos "$@"
+calcular_valores
 imprimir_tabela
