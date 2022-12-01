@@ -19,13 +19,8 @@ tempfile=$(mktemp) || tempfile="rwstat-$$.temp"
 # Parâmetros de filtragem e ordenação
 ord_coluna=""       # Ordenar por esta coluna no final
 ord_inverter="0"    # Inverter a ordem ou não.
-filtro_comm=""
 filtro_dataMin=""
 filtro_dataMax=""
-filtro_user=""
-filtro_pidMin=""
-filtro_pidMax=""
-filtro_linhasMax=""
 
 
 function verificar_argumentos()
@@ -140,13 +135,14 @@ function argumentos()
                 head -n "$target" $tempfile > tmpfile && mv tmpfile $tempfile
                 ;;
             r )
-                ord_inverter="1" # Funciona!
+                ord_inverter="1"
                 ;;
             w )
-                ord_coluna="7" # Funciona!
+                ord_coluna="7"
                 ;;
             ? )
                 echo "Invalid option"
+                exit 1;
                 ;;
         esac
 
