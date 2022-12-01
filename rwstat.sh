@@ -14,7 +14,7 @@ optstring=":c:s:e:u:m:M:p:rw"
 regexNumber='^[0-9]+$'
 
 # Criar um ficheiro temporário.
-tempfile=$(mktemp) || tempfile="rwstat-$$.temp"
+tempfile=$(mktemp) || tempfile=".rwstat-$$.temp"
 
 # Parâmetros de filtragem e ordenação
 ord_coluna=""       # Ordenar por esta coluna no final
@@ -174,22 +174,27 @@ function filtrar_linhas()
 {
     if [[ -n $filtro_comm ]]; then
         echo "DEBUG: A filtrar por comm."
-        awk -F"|" -e '{ if($1 ~ '"/^$filtro_comm/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
+        tmpfilter=$(mktemp) || tmpfilter=".rwstat-$$-filter.temp"
+        awk -F"|" -e '{ if($1 ~ '"/^$filtro_comm/"') {print}}' $tempfile > $tmpfilter && mv $tmpfilter $tempfile
     fi
 
     if [[ -n $filtro_user ]]; then
         echo "DEBUG: A filtrar por user ($filtro_user)."
-        awk -F"|" -e '{ if($2 ~ '"/$filtro_user/"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
+        tmpfilter=$(mktemp) || tmpfilter=".rwstat-$$-filter.temp"
+        echo "DEBUG: tmpfilter: $tmpfilter"
+        awk -F"|" -e '{ if($2 ~ '"/$filtro_user/"') {print}}' $tempfile > $tmpfilter && mv $tmpfilter $tempfile
     fi
 
     if [[ -n $filtro_pidMin ]]; then
         echo "DEBUG: A filtrar por PID mínimo."
-        awk -F"|" '{ if($3 >= '"$filtro_pidMin"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
+        tmpfilter=$(mktemp) || tmpfilter=".rwstat-$$-filter.temp"
+        awk -F"|" '{ if($3 >= '"$filtro_pidMin"') {print}}' $tempfile > $tmpfilter && mv $tmpfilter $tempfile
     fi
 
     if [[ -n $filtro_pidMax ]]; then
         echo "DEBUG: A filtrar por PID máximo."
-        awk -F"|" '{ if($3 <= '"$filtro_pidMax"') {print}}' $tempfile > tmpfile && mv tmpfile $tempfile
+        tmpfilter=$(mktemp) || tmpfilter=".rwstat-$$-filter.temp"
+        awk -F"|" '{ if($3 <= '"$filtro_pidMax"') {print}}' $tempfile > $tmpfilter && mv $tmpfilter $tempfile
     fi
 }
 
@@ -210,7 +215,8 @@ function cortar_linhas()
 {
     if [[ -n $filtro_linhasMax ]]; then
             echo "DEBUG: A filtrar por quantidade de linhas."
-            head -n "$filtro_linhasMax" $tempfile > tmpfile && mv tmpfile $tempfile
+            tmpfilter=$(mktemp) || tmpfilter=".rwstat-$$-filter.temp"
+            head -n "$filtro_linhasMax" $tempfile > $tmpfilter && mv $tmpfilter $tempfile
     fi
 }
 
